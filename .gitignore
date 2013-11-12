@@ -1,0 +1,5 @@
+# Ant build artefacts
+build
+src/gen-java
+src/resources/org/apache/cassandra/config/version.properties
+
