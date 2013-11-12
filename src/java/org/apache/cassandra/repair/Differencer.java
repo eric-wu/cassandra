@@ -70,9 +70,26 @@ public class Differencer implements Runnable
             return;
         }
 
+        recomputeTreeForWideRows();
+
         // non-0 difference: perform streaming repair
         logger.info(format, "have {} range(s) out of sync", differences.size());
         performStreamingRepair();
+    }
+
+    private void recomputeTreeForWideRows()
+    {
+        for (Range<Token> difference : differences)
+        {
+            String keyspace = desc.keyspace;
+            String columnFamily = desc.columnFamily;
+            // For each token, get the row and check its column size
+            //     If the column size is above threshold, say, 1 million
+            //         Start a new repair job to
+            //             Recompute the Meckle trees based on columns for this token range
+            //         Skip the repair here by removing the token range from the differences
+            //         
+        }
     }
 
     /**
