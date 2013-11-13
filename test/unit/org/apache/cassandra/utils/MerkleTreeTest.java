@@ -33,7 +33,6 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.MerkleTree.Hashable;
 import org.apache.cassandra.utils.MerkleTree.RowHash;
-import org.apache.cassandra.utils.MerkleTree.TreeDifference;
 import org.apache.cassandra.utils.MerkleTree.TreeRange;
 import org.apache.cassandra.utils.MerkleTree.TreeRangeIterator;
 
@@ -325,6 +324,22 @@ public class MerkleTreeTest
 
         assert mt.hash(new Range<>(tok(-1), tok(-1))) != null :
             "Could not hash tree " + mt;
+    }
+
+    @Test
+    public void testColumnCount() {
+        mt = new MerkleTree(partitioner, fullRange(), RECOMMENDED_DEPTH, 32);
+        TreeRangeIterator ranges = mt.invalids();
+        for (TreeRange range : ranges)
+        {
+            range.addColumnCount(3);
+        }
+        for (TreeRange range : ranges)
+        {
+            assertEquals(3, range.getColumnCount());
+            range.addColumnCount(2);
+            assertEquals(5, range.getColumnCount());
+        }
     }
 
     /**

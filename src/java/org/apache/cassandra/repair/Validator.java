@@ -149,6 +149,10 @@ public class Validator implements Runnable
 
         // case 3 must be true: mix in the hashed row
         range.addHash(rowHash(row));
+
+        // Update column count for the range
+        int columnCount = row.columnStats().columnCount;
+        range.addColumnCount(columnCount);
     }
 
     static class CountingDigest extends MessageDigest
