@@ -22,16 +22,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.base.Objects;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncComplete;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTree.TreeRange;
 
 /**
  * Runs on the node that initiated a request to compare two trees, and launch repairs for disagreeing ranges.
@@ -39,6 +41,8 @@ import org.apache.cassandra.utils.MerkleTree;
 public class Differencer implements Runnable
 {
     private static Logger logger = LoggerFactory.getLogger(Differencer.class);
+    
+    private static final long MAX_COLUMN_COUNT_FOR_REPAIR = 1000000000L; // 1 billion
 
     private final RepairJobDesc desc;
     public final TreeResponse r1;
@@ -79,24 +83,38 @@ public class Differencer implements Runnable
 
     private void recomputeTreeForWideRows()
     {
-        for (Range<Token> difference : differences)
+        List<Range<Token>> toKeep = new ArrayList<>();
+        for (Range<Token> range : differences)
         {
-            String keyspace = desc.keyspace;
-            String columnFamily = desc.columnFamily;
-            // For each token, get the row and check its column size
-            //     If the column size is above threshold, say, 1 million
-            //         Start a new repair job to
-            //             Recompute the Meckle trees based on columns for this token range
-            //         Skip the repair here by removing the token range from the differences
-            //         
+            TreeRange treeRange = (TreeRange)range;
+            if (treeRange.getColumnCount() < MAX_COLUMN_COUNT_FOR_REPAIR)
+            {
+                toKeep.add(range);
+                break;
+            }
+
+            // Avoid infinite loop -- do it only if there are more than 1 token in the range
+            // Is this the correct check for 1-token range?
+            if (treeRange.left.equals(treeRange.right))
+            {
+                toKeep.add(range);
+                break;
+            }
+
+            // Create a new range -- TreeRange serializes the Merkle tree?
+            Range<Token> lightweightRange = new Range<>(treeRange.left, treeRange.right);
+            // Start a new repair job to recompute the Merkle tree for this token range
+            ActiveRepairService.instance.submitRepairSession(lightweightRange, desc.keyspace, true, false, desc.columnFamily);
         }
+        differences.clear();
+        differences.addAll(toKeep);
     }
 
     /**
      * Starts sending/receiving our list of differences to/from the remote endpoint: creates a callback
      * that will be called out of band once the streams complete.
      */
-    void performStreamingRepair()
+    private void performStreamingRepair()
     {
         InetAddress local = FBUtilities.getBroadcastAddress();
         // We can take anyone of the node as source or destination, however if one is localhost, we put at source to avoid a forwarding
@@ -107,7 +125,6 @@ public class Differencer implements Runnable
         StreamingRepairTask task = new StreamingRepairTask(desc, request);
         task.run();
     }
-
 
     /**
      * In order to remove completed Differencer, equality is computed only from {@code desc} and

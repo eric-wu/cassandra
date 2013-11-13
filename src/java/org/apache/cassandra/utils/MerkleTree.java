@@ -638,6 +638,16 @@ public class MerkleTree implements Serializable
                 addHash(entries.next());
         }
 
+        public void addColumnCount(long columnCount)
+        {
+            hashable.addColumnCount(columnCount);
+        }
+
+        public long getColumnCount()
+        {
+            return hashable.getColumnCount();
+        }
+
         @Override
         public String toString()
         {
@@ -905,6 +915,7 @@ public class MerkleTree implements Serializable
                     out.writeInt(leaf.hash.length);
                     out.write(leaf.hash);
                 }
+                out.writeLong(leaf.getColumnCount());
             }
 
             public Leaf deserialize(DataInput in, int version) throws IOException
@@ -913,7 +924,10 @@ public class MerkleTree implements Serializable
                 byte[] hash = hashLen < 0 ? null : new byte[hashLen];
                 if (hash != null)
                     in.readFully(hash);
-                return new Leaf(hash);
+                long columnCount = in.readLong();
+                Leaf leaf = new Leaf(hash);
+                leaf.addColumnCount(columnCount);
+                return leaf;
             }
 
             public long serializedSize(Leaf leaf, int version)
@@ -960,6 +974,7 @@ public class MerkleTree implements Serializable
         protected byte[] hash;
         protected long sizeOfRange;
         protected long rowsInRange;
+        private long columnCount = 0L;
 
         protected Hashable(byte[] hash)
         {
@@ -979,6 +994,11 @@ public class MerkleTree implements Serializable
         public long rowsInRange()
         {
             return rowsInRange;
+        }
+
+        long getColumnCount()
+        {
+            return columnCount;
         }
 
         void hash(byte[] hash)
@@ -1022,6 +1042,11 @@ public class MerkleTree implements Serializable
         static byte[] binaryHash(final byte[] left, final byte[] right)
         {
             return FBUtilities.xor(left, right);
+        }
+
+        void addColumnCount(long columnCount)
+        {
+            this.columnCount += columnCount;
         }
 
         public abstract void toString(StringBuilder buff, int maxdepth);
