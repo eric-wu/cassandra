@@ -147,17 +147,8 @@ public class Validator implements Runnable
             range = ranges.next();
         }
 
-        if (row.columnStats().columnCount > Integer.MAX_VALUE) // TODO: threshold
-        {
-            // MerkleTree columnTree = new MerkleTree(ColumnPartitioner, Range<ColumnToken>);
-            // columnTree.addRow(row);
-            // range.addHash(columnTree);
-        }
-        else
-        {
-            // case 3 must be true: mix in the hashed row
-            range.addHash(rowHash(row));
-        }
+        // case 3 must be true: mix in the hashed row
+        range.addHash(rowHash(row));
     }
 
     static class CountingDigest extends MessageDigest
